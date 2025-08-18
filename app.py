@@ -79,6 +79,17 @@ st.markdown(
 
       /* Sidebar title */
       section[data-testid="stSidebar"] {background: #ffffff;}
+      
+      /* Responsive layout for smaller screens */
+      @media (max-width: 992px) {
+        div[data-testid="stHorizontalBlock"] {
+            flex-direction: column;
+            flex-wrap: wrap;
+        }
+        div[data-testid="stHorizontalBlock"] > div {
+            flex: 1;
+        }
+      }
     </style>
     """,
     unsafe_allow_html=True,
@@ -111,7 +122,6 @@ def load_sample_dataframe() -> pd.DataFrame:
         ["Veda Botanicals", "Herbal Extracts", "130219", "India", "Bengaluru", 80, 10, 4.3, "No", "contact@vedabotanicals.in"],
     ]
     df = pd.DataFrame(data, columns=TEMPLATE_COLUMNS)
-    # Ensure correct data types for sample data
     df['HS_Code'] = df['HS_Code'].astype(str)
     return df
 
@@ -148,10 +158,7 @@ with io.StringIO() as buffer:
 # Load/upload data
 if uploaded is not None:
     try:
-        # Read with HS_Code as string to preserve formatting
         df_upload = pd.read_csv(uploaded, dtype={"HS_Code": str})
-        
-        # Ensure required cols exist
         missing = [c for c in TEMPLATE_COLUMNS if c not in df_upload.columns]
         if missing:
             st.sidebar.error(f"Missing columns in upload: {', '.join(missing)}")
@@ -182,7 +189,6 @@ mask = pd.Series(True, index=df.index)
 
 if q_supplier:
     q = q_supplier.lower().strip()
-    # Handle potential empty cells with .fillna('')
     mask &= (
         df["Supplier Name"].fillna('').str.lower().str.contains(q, na=False)
         | df["Product Category"].fillna('').str.lower().str.contains(q, na=False)
@@ -197,7 +203,7 @@ if sel_country:
 if verified_only:
     mask &= df["Verified"].astype(str).str.lower().eq("yes")
 if hs_query:
-    mask &= df["HS_Code"].astype(str).str.contains(hs_query)
+    mask &= df["HS_Code"].astype(str).str.contains(hs_query, na=False)
 
 mask &= df["Rating"].fillna(0).between(min_rating, max_rating)
 
@@ -207,7 +213,7 @@ filtered_df = df[mask].reset_index(drop=True)
 # ---------------------------
 # Header / Hero
 # ---------------------------
-left, right = st.columns([0.75, 0.25])
+left, right = st.columns([4, 1])
 with left:
     st.markdown(
         """
@@ -346,7 +352,6 @@ with TAB_EDIT:
     st.subheader("Edit / Add Suppliers")
     st.caption("Make changes below, then click **Save Changes** to keep them for this session.")
     
-    # Add new blank row logic is now corrected
     if st.button("➕ Add Blank Row"):
         new_row_df = pd.DataFrame([{c: "" for c in TEMPLATE_COLUMNS}])
         st.session_state.df = pd.concat([st.session_state.df, new_row_df], ignore_index=True)
@@ -354,7 +359,7 @@ with TAB_EDIT:
         st.rerun()
 
     edited_df = st.data_editor(
-        st.session_state.df, # Edit the dataframe in session state
+        st.session_state.df,
         use_container_width=True,
         num_rows="dynamic",
         hide_index=True,
@@ -363,7 +368,7 @@ with TAB_EDIT:
                 "Verified", options=["Yes", "No"], default="No"
             ),
             "Rating": st.column_config.NumberColumn("Rating", min_value=0.0, max_value=5.0, step=0.1, format="%.1f"),
-            "HS_Code": st.column_config.TextColumn("HS Code"), # Use TextColumn for HS Code
+            "HS_Code": st.column_config.TextColumn("HS Code"),
             "Minimum Order Quantity": st.column_config.NumberColumn("Minimum Order Quantity", min_value=0),
             "Lead Time (days)": st.column_config.NumberColumn("Lead Time (days)", min_value=0),
         },
@@ -373,7 +378,6 @@ with TAB_EDIT:
     save_col, reset_col = st.columns([1,1])
     with save_col:
         if st.button("💾 Save Changes"):
-            # Validate columns and save the returned edited_df
             missing = [c for c in TEMPLATE_COLUMNS if c not in edited_df.columns]
             if missing:
                 st.error(f"Missing required columns: {', '.join(missing)}")
@@ -385,13 +389,12 @@ with TAB_EDIT:
     with reset_col:
         if st.button("↩️ Reset to Sample Data"):
             st.session_state.df = load_sample_dataframe()
-            st.rerun() # Use st.rerun() - it's the modern replacement
+            st.rerun()
 
 
 with TAB_IO:
     st.subheader("Import & Export")
-    st.markdown(
-        "Upload a CSV in the sidebar. Export your current dataset below.")
+    st.markdown("Upload a CSV in the sidebar. Export your current dataset below.")
 
     col_csv, col_json = st.columns(2)
     with col_csv:
