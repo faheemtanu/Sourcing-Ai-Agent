@@ -103,14 +103,16 @@ TEMPLATE_COLUMNS = [
 
 def load_sample_dataframe() -> pd.DataFrame:
     data = [
-        ["BrightLite Industries", "LED Bulbs", 940540, "India", "Delhi", 100, 15, 4.5, "Yes", "sales@brightlite.in"],
-        ["Shakti Exports", "Basmati Rice", 100630, "India", "Karnal", 500, 12, 4.2, "Yes", "export@shaktigroup.in"],
-        ["GlobalTech Pharma", "Pharmaceuticals", 300490, "India", "Mumbai", 200, 20, 4.8, "No", "bd@globaltechpharma.com"],
-        ["AquaSteel Ltd", "Stainless Steel", 721934, "India", "Ahmedabad", 50, 18, 4.1, "Yes", "info@aquasteel.co"],
-        ["Suryan Solar", "Solar Panels", 854140, "India", "Hyderabad", 25, 30, 4.6, "Yes", "hello@suryansolar.in"],
-        ["Veda Botanicals", "Herbal Extracts", 130219, "India", "Bengaluru", 80, 10, 4.3, "No", "contact@vedabotanicals.in"],
+        ["BrightLite Industries", "LED Bulbs", "940540", "India", "Delhi", 100, 15, 4.5, "Yes", "sales@brightlite.in"],
+        ["Shakti Exports", "Basmati Rice", "100630", "India", "Karnal", 500, 12, 4.2, "Yes", "export@shaktigroup.in"],
+        ["GlobalTech Pharma", "Pharmaceuticals", "300490", "India", "Mumbai", 200, 20, 4.8, "No", "bd@globaltechpharma.com"],
+        ["AquaSteel Ltd", "Stainless Steel", "721934", "India", "Ahmedabad", 50, 18, 4.1, "Yes", "info@aquasteel.co"],
+        ["Suryan Solar", "Solar Panels", "854140", "India", "Hyderabad", 25, 30, 4.6, "Yes", "hello@suryansolar.in"],
+        ["Veda Botanicals", "Herbal Extracts", "130219", "India", "Bengaluru", 80, 10, 4.3, "No", "contact@vedabotanicals.in"],
     ]
     df = pd.DataFrame(data, columns=TEMPLATE_COLUMNS)
+    # Ensure correct data types for sample data
+    df['HS_Code'] = df['HS_Code'].astype(str)
     return df
 
 
@@ -146,13 +148,15 @@ with io.StringIO() as buffer:
 # Load/upload data
 if uploaded is not None:
     try:
-        df = pd.read_csv(uploaded)
+        # Read with HS_Code as string to preserve formatting
+        df_upload = pd.read_csv(uploaded, dtype={"HS_Code": str})
+        
         # Ensure required cols exist
-        missing = [c for c in TEMPLATE_COLUMNS if c not in df.columns]
+        missing = [c for c in TEMPLATE_COLUMNS if c not in df_upload.columns]
         if missing:
             st.sidebar.error(f"Missing columns in upload: {', '.join(missing)}")
         else:
-            st.session_state.df = df[TEMPLATE_COLUMNS]
+            st.session_state.df = df_upload[TEMPLATE_COLUMNS]
             st.sidebar.success("Data uploaded ✔")
     except Exception as e:
         st.sidebar.error(f"Could not read CSV: {e}")
@@ -178,10 +182,11 @@ mask = pd.Series(True, index=df.index)
 
 if q_supplier:
     q = q_supplier.lower().strip()
+    # Handle potential empty cells with .fillna('')
     mask &= (
-        df["Supplier Name"].str.lower().str.contains(q, na=False)
-        | df["Product Category"].str.lower().str.contains(q, na=False)
-        | df["Location"].str.lower().str.contains(q, na=False)
+        df["Supplier Name"].fillna('').str.lower().str.contains(q, na=False)
+        | df["Product Category"].fillna('').str.lower().str.contains(q, na=False)
+        | df["Location"].fillna('').str.lower().str.contains(q, na=False)
     )
 if sel_product:
     mask &= df["Product Category"].isin(sel_product)
@@ -256,7 +261,7 @@ with TAB_DASH:
     # Charts row 1
     c1, c2 = st.columns(2)
     with c1:
-        if len(filtered_df):
+        if not filtered_df.empty:
             fig1 = px.bar(
                 filtered_df.groupby(["Location", "Product Category"], as_index=False)["Supplier Name"].count(),
                 x="Location",
@@ -270,7 +275,7 @@ with TAB_DASH:
             st.info("No data to display for this chart.")
 
     with c2:
-        if len(filtered_df):
+        if not filtered_df.empty:
             fig2 = px.pie(
                 filtered_df,
                 names="Product Category",
@@ -285,7 +290,7 @@ with TAB_DASH:
     # Charts row 2
     c3, c4 = st.columns(2)
     with c3:
-        if len(filtered_df):
+        if not filtered_df.empty:
             fig3 = px.histogram(
                 filtered_df,
                 x="Rating",
@@ -298,7 +303,7 @@ with TAB_DASH:
             st.info("No data to display for this chart.")
 
     with c4:
-        if len(filtered_df):
+        if not filtered_df.empty:
             top_hs = (
                 filtered_df.groupby("HS_Code", as_index=False)["Supplier Name"].count()
                 .rename(columns={"Supplier Name": "Count"})
@@ -330,7 +335,7 @@ with TAB_TABLE:
 
     st.download_button(
         "Download Filtered CSV",
-        data=filtered_df.to_csv(index=False),
+        data=filtered_df.to_csv(index=False).encode('utf-8'),
         file_name="suppliers_filtered.csv",
         mime="text/csv",
         help="Exports rows after current filters",
@@ -340,14 +345,16 @@ with TAB_TABLE:
 with TAB_EDIT:
     st.subheader("Edit / Add Suppliers")
     st.caption("Make changes below, then click **Save Changes** to keep them for this session.")
-
-    # Add new blank row
+    
+    # Add new blank row logic is now corrected
     if st.button("➕ Add Blank Row"):
-        new_row = {c: "" for c in TEMPLATE_COLUMNS}
-        df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
+        new_row_df = pd.DataFrame([{c: "" for c in TEMPLATE_COLUMNS}])
+        st.session_state.df = pd.concat([st.session_state.df, new_row_df], ignore_index=True)
+        st.toast("Blank row added to the bottom of the table.")
+        st.rerun()
 
     edited_df = st.data_editor(
-        df,
+        st.session_state.df, # Edit the dataframe in session state
         use_container_width=True,
         num_rows="dynamic",
         hide_index=True,
@@ -355,8 +362,8 @@ with TAB_EDIT:
             "Verified": st.column_config.SelectboxColumn(
                 "Verified", options=["Yes", "No"], default="No"
             ),
-            "Rating": st.column_config.NumberColumn("Rating", min_value=0.0, max_value=5.0, step=0.1),
-            "HS_Code": st.column_config.NumberColumn("HS Code"),
+            "Rating": st.column_config.NumberColumn("Rating", min_value=0.0, max_value=5.0, step=0.1, format="%.1f"),
+            "HS_Code": st.column_config.TextColumn("HS Code"), # Use TextColumn for HS Code
             "Minimum Order Quantity": st.column_config.NumberColumn("Minimum Order Quantity", min_value=0),
             "Lead Time (days)": st.column_config.NumberColumn("Lead Time (days)", min_value=0),
         },
@@ -366,17 +373,19 @@ with TAB_EDIT:
     save_col, reset_col = st.columns([1,1])
     with save_col:
         if st.button("💾 Save Changes"):
-            # Validate columns and save
+            # Validate columns and save the returned edited_df
             missing = [c for c in TEMPLATE_COLUMNS if c not in edited_df.columns]
             if missing:
                 st.error(f"Missing required columns: {', '.join(missing)}")
             else:
                 st.session_state.df = edited_df[TEMPLATE_COLUMNS]
                 st.success("Saved to session ✔ Use Export to download.")
+                st.toast("Changes have been saved!")
+
     with reset_col:
         if st.button("↩️ Reset to Sample Data"):
             st.session_state.df = load_sample_dataframe()
-            st.experimental_rerun()
+            st.rerun() # Use st.rerun() - it's the modern replacement
 
 
 with TAB_IO:
@@ -388,14 +397,14 @@ with TAB_IO:
     with col_csv:
         st.download_button(
             "⬇️ Download All (CSV)",
-            data=st.session_state.df.to_csv(index=False),
+            data=st.session_state.df.to_csv(index=False).encode('utf-8'),
             file_name="suppliers_all.csv",
             mime="text/csv",
         )
     with col_json:
         st.download_button(
             "⬇️ Download All (JSON)",
-            data=st.session_state.df.to_json(orient="records"),
+            data=st.session_state.df.to_json(orient="records").encode('utf-8'),
             file_name="suppliers_all.json",
             mime="application/json",
         )
@@ -417,4 +426,3 @@ with TAB_ABOUT:
         ⭐ If you later want a login, multi-user database, or API integrations (e.g., IndiaTrade/Indiamart scraping via their allowed endpoints), we can extend this without breaking your current flow.
         """
     )
-
