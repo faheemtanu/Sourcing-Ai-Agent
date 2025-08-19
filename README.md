@@ -1,33 +1,28 @@
 # 📦 AI Sourcing Agent – Supplier Intelligence Dashboard
 
-A free **Streamlit dashboard** for managing and analyzing supplier data.  
-Upload your supplier dataset (CSV/Excel), filter it, visualize insights, and even ask an **AI assistant** (Hugging Face DistilBERT) about your suppliers.
+An open-source **Streamlit dashboard** to manage, analyze, and explore supplier datasets with **AI-powered Q&A**.  
+Built for sourcing agents, procurement teams, and exporters.
 
 ---
 
 ## 🚀 Features
 
-✅ **Upload & Normalize Data** (CSV or Excel – auto-renames columns)  
-✅ **Verified Source Column** (manual upload or auto-detected from email domains like IndiaMART, DGFT, TradeIndia)  
-✅ **Advanced Filters** (search by product, location, HS Code, rating, verification status, verified source)  
-✅ **Charts & Insights**
-- Suppliers by Location & Category
-- Category Market Share
-- Rating Distribution Histogram
-- HS Code Breakdown  
-✅ **Editable Supplier Database** (add/edit suppliers inline, save changes)  
-✅ **Import & Export**
-- Download filtered data (CSV)
-- Download all suppliers (CSV / JSON)
-- Download blank template (CSV)  
-✅ **AI Q&A** (powered by Hugging Face DistilBERT)  
-- Ask natural questions like:  
-  - *“Which supplier has the fastest lead time?”*  
-  - *“Who supplies solar panels in Hyderabad?”*  
-- AI will analyze your dataset and suggest the best matches  
-✅ **Streamlit Cloud Ready** – works with free Hugging Face + Streamlit hosting  
+✅ Upload your **CSV/Excel** supplier datasets  
+✅ Auto-normalizes columns (Supplier Name, HS Code, Country, MOQ, Lead Time, Rating, etc.)  
+✅ **Verified Source detection** (e.g., `.gov.in = DGFT / Govt`, `.in = Indian Private Company`, `.com = Global Trader`)  
+✅ Rich **filters**: search by product, supplier, location, rating, HS code, etc.  
+✅ 📊 Interactive **charts** (bar, pie) with Plotly  
+✅ 📋 **Supplier table** with download/export options  
+✅ ✏️ **Editable data grid** with ability to add rows  
+✅ 🤖 **Ask AI** – natural language Q&A powered by Hugging Face (DistilBERT)  
+✅ ⬆️⬇️ Import & export datasets (CSV download, Excel upload)  
+✅ 🧮 Metrics panel: verified %, average rating, average lead time  
 
 ---
 
-## 📂 Project Structure
+## 🛠️ Installation
 
+Clone the repo and install requirements:
+
+```bash
+pip install -r requirements.txt
