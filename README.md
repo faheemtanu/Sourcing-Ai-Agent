@@ -1,60 +1,19 @@
-# 📦 AI Sourcing Agent – Streamlit Dashboard
+# 📦 AI Sourcing Agent – Dashboard
 
-A powerful **supplier intelligence dashboard** built with **Streamlit**, now with:
-
-- ✅ CSV/Excel upload & column auto-normalization
-- ✅ Auto-detect **Verified Source** (IndiaMART, DGFT, TradeIndia, etc.)
-- ✅ Search + Filters (supplier/product/location/country/HS/rating/verified)
-- ✅ Charts (bar, pie, metrics dashboard)
-- ✅ Editable suppliers table with save
-- ✅ Export (CSV, Excel, JSON)
-- ✅ 🤖 AI Q&A (powered by Hugging Face DistilBERT)
-- ✅ 📡 Live Data loader (UN Comtrade integration)
-
----
+An interactive Streamlit app for supplier intelligence.
 
 ## 🚀 Features
+- Upload supplier CSV/Excel (auto-normalized)
+- Filters: product, location, country, HS Code, verified only
+- Inline editor + add suppliers
+- Charts (bar + pie)
+- Export filtered / all data (CSV)
+- 🤖 Q&A using Hugging Face Inference API (DistilBERT QA)
+- Auto-detect **Verified Source** based on email domain
+- 📡 Live data fetch from UN Comtrade API (e.g., Coffee HS 0901)
 
-### File Upload
-- Upload supplier data in **CSV** or **Excel**.
-- Automatically cleans & normalizes column names.
-- Fills in **Verified Source** based on supplier email domain.
+## 🔧 Setup
 
-### Verified Source Detection
-- `.gov.in` → **DGFT / Govt**  
-- `indiamart.com` → **IndiaMART**  
-- `tradeindia.com` → **TradeIndia**  
-- `exportersindia.com` → **ExportersIndia**  
-- `.in` → **Indian Private Company**  
-- `.com` → **Global Trader / Exporter**  
-- `.org` → **NGO / Association**  
-
-### Dashboard
-- Supplier overview with metrics:
-  - Total Suppliers
-  - Verified %
-  - Average Rating
-  - Average Lead Time
-- Interactive charts (location vs category, category share).
-
-### 🤖 Ask AI
-- Ask natural-language questions like:
-  - *Which supplier has the fastest lead time?*
-  - *List verified coffee exporters.*
-- Uses Hugging Face **DistilBERT QA** pipeline.
-
-### 📡 Live Data Integration
-- Fetch **real trade data** from **UN Comtrade API**.
-- Example: Indian exports of **coffee (HS 0901)**.
-- App merges live data with uploaded suppliers.
-
-### Import/Export
-- Export **filtered data** to CSV.
-- Export **all suppliers** to CSV/Excel/JSON.
-
----
-
-## 🛠️ Installation
-
+### 1. Install dependencies
 ```bash
 pip install -r requirements.txt
