@@ -1,7 +1,5 @@
 streamlit
 pandas
-openpyxl
 plotly
+openpyxl
 requests
-transformers
-torch
