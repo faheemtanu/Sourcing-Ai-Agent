@@ -1,25 +1,24 @@
-# 📦 AI Sourcing Agent – Supplier Dashboard
+# 📦 AI Sourcing Agent Dashboard
 
-An interactive **Streamlit app** for supplier intelligence:
-- KPI cards
-- Advanced filters
-- Interactive charts (Plotly)
-- Editable supplier table
-- CSV/JSON import & export
-- 100% free to use and deploy
+A free **Streamlit dashboard** for supplier intelligence.  
+Upload messy CSV/Excel supplier data → get **cleaned data, filters, charts, and AI Q&A**.
 
 ---
 
-## 🚀 Run Locally
+## 🚀 Features
+- Upload **CSV/Excel** supplier files  
+- Auto **normalize columns** (Lead Time, MOQ, Email, etc.)  
+- Interactive filters (country, category, rating, verified)  
+- Charts (category share, suppliers by location)  
+- **Editable table** with inline editing & adding suppliers  
+- Export to CSV  
+- 🤖 **Ask AI tab** → natural language Q&A powered by Hugging Face (DistilBERT QA)  
+
+---
+
+## 🛠️ Installation & Local Run
+
+Clone repo & install dependencies:
 
 ```bash
-# 1. Clone the repo
-git clone https://github.com/your-username/sourcing-ai-agent.git
-cd sourcing-ai-agent
-
-# 2. Install dependencies
 pip install -r requirements.txt
-
-# 3. Run Streamlit
-streamlit run app.py
-
