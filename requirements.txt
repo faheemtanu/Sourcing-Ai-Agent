@@ -2,9 +2,4 @@ streamlit
 pandas
 plotly
 transformers
-
-
-
-
-
-
+torch
