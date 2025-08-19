@@ -1,19 +1,25 @@
-# 📦 AI Sourcing Agent – Dashboard
+# 📦 AI Sourcing Agent Dashboard
 
-An interactive Streamlit app for supplier intelligence.
+An AI-powered **supplier intelligence dashboard** built with **Streamlit**.  
+Upload supplier data (CSV/Excel) or fetch live trade stats from **UN Comtrade**, explore insights, and ask natural language questions with Hugging Face 🤖.
+
+---
 
 ## 🚀 Features
-- Upload supplier CSV/Excel (auto-normalized)
-- Filters: product, location, country, HS Code, verified only
-- Inline editor + add suppliers
-- Charts (bar + pie)
-- Export filtered / all data (CSV)
-- 🤖 Q&A using Hugging Face Inference API (DistilBERT QA)
-- Auto-detect **Verified Source** based on email domain
-- 📡 Live data fetch from UN Comtrade API (e.g., Coffee HS 0901)
+- **File Uploads** (CSV + Excel) → auto-normalizes messy column names
+- **Verified & Verified Source** detection (guesses source from email domain if missing)
+- **Filters**: supplier, category, HS code, country, location, rating, verified
+- **Charts**: suppliers by location/category, product share
+- **Editable Table**: add/remove suppliers inline
+- **Import/Export**: download CSV or JSON
+- **🤖 Ask AI**: natural language Q&A with Hugging Face Inference API
+- **📡 Live Data**: pull sample exports (e.g., Coffee HS 0901) from **UN Comtrade**
 
-## 🔧 Setup
+---
 
-### 1. Install dependencies
+## 🔧 Installation
+
+Clone the repo and install requirements:
+
 ```bash
 pip install -r requirements.txt
