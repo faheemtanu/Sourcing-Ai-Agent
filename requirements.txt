@@ -4,3 +4,4 @@ plotly
 transformers
 torch
 openpyxl
+requests
