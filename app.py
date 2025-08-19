@@ -6,10 +6,12 @@ from datetime import datetime
 import pandas as pd
 import plotly.express as px
 import streamlit as st
+
+# Hugging Face transformers for free Q&A
 from transformers import pipeline
 
 # ---------------------------
-# Page Setup & Global Styles
+# Page Setup
 # ---------------------------
 st.set_page_config(
     page_title="AI Sourcing Agent – Dashboard",
@@ -18,26 +20,14 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# CSS Theme
-st.markdown(
-    """
-    <style>
-      body {background: #f5f7fb;}    
-      .block-container {padding-top: 1.5rem; padding-bottom: 4rem;}
-      header {visibility: hidden;}
-      .card {
-        background: #ffffff;
-        border-radius: 18px;
-        padding: 18px;
-        box-shadow: 0 6px 24px rgba(2,6,23,0.06);
-        border: 1px solid rgba(2,6,23,0.06);
-      }
-      div[data-testid="stMetricValue"] {font-size: 1.6rem;}
-      div[data-testid="stMetricLabel"] {color: #64748b;}  
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
+# ---------------------------
+# Load QA model (once)
+# ---------------------------
+@st.cache_resource
+def load_qa_model():
+    return pipeline("question-answering", model="distilbert-base-uncased-distilled-squad")
+
+qa_pipeline = load_qa_model()
 
 # ---------------------------
 # Template Columns
@@ -56,140 +46,251 @@ TEMPLATE_COLUMNS = [
     "Contact Email",
 ]
 
-def guess_verified_source(email: str) -> str:
-    """Auto-guess verification source based on email domain"""
-    if not isinstance(email, str) or "@" not in email:
-        return "Unknown"
-    domain = email.lower().split("@")[-1]
-    if domain.endswith("gov.in"):
-        return "DGFT / Govt"
-    elif "indiamart.com" in domain:
-        return "IndiaMART"
-    elif "tradeindia.com" in domain:
-        return "TradeIndia"
-    return "Unknown"
+COLUMN_ALIASES = {
+    "supplier": "Supplier Name",
+    "suppliername": "Supplier Name",
+    "product": "Product Category",
+    "category": "Product Category",
+    "hs code": "HS_Code",
+    "hscode": "HS_Code",
+    "country": "Country",
+    "location": "Location",
+    "moq": "Minimum Order Quantity",
+    "minimum order": "Minimum Order Quantity",
+    "leadtime": "Lead Time (days)",
+    "delivery days": "Lead Time (days)",
+    "rating": "Rating",
+    "verified": "Verified",
+    "source": "Verified Source",
+    "email": "Contact Email",
+    "contact": "Contact Email",
+}
 
-def load_sample_dataframe() -> pd.DataFrame:
-    data = [
-        ["BrightLite Industries", "LED Bulbs", "940540", "India", "Delhi", 100, 15, 4.5, "Yes", "DGFT / Govt", "sales@brightlite.in"],
-        ["Shakti Exports", "Basmati Rice", "100630", "India", "Karnal", 500, 12, 4.2, "Yes", "IndiaMART", "export@shaktigroup.indiamart.com"],
-        ["GlobalTech Pharma", "Pharmaceuticals", "300490", "India", "Mumbai", 200, 20, 4.8, "No", "Unknown", "bd@globaltechpharma.com"],
-    ]
-    df = pd.DataFrame(data, columns=TEMPLATE_COLUMNS)
+def guess_verified_source(email: str) -> str:
+    if not isinstance(email, str):
+        return "Unknown"
+    e = email.lower()
+    if e.endswith(".gov.in"):
+        return "DGFT / Govt"
+    elif "indiamart" in e:
+        return "IndiaMART"
+    elif "tradeindia" in e:
+        return "TradeIndia"
+    else:
+        return "Unknown"
+
+def normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
+    renamed = {}
+    for col in df.columns:
+        key = col.strip().lower()
+        if key in COLUMN_ALIASES:
+            renamed[col] = COLUMN_ALIASES[key]
+        else:
+            for alias, target in COLUMN_ALIASES.items():
+                if alias in key:
+                    renamed[col] = target
+                    break
+    df = df.rename(columns=renamed)
+    for col in TEMPLATE_COLUMNS:
+        if col not in df.columns:
+            df[col] = None
+    df = df[TEMPLATE_COLUMNS]
+
+    if "Lead Time (days)" in df.columns:
+        df["Lead Time (days)"] = pd.to_numeric(df["Lead Time (days)"], errors="coerce")
+    if "Rating" in df.columns:
+        df["Rating"] = pd.to_numeric(df["Rating"], errors="coerce")
+
+    if "Verified Source" in df.columns:
+        df["Verified Source"] = df["Verified Source"].fillna("Unknown")
+    else:
+        df["Verified Source"] = df["Contact Email"].apply(guess_verified_source)
+
     return df
 
-# Initialize session
+# ---------------------------
+# Sample Data
+# ---------------------------
+def load_sample_dataframe() -> pd.DataFrame:
+    data = [
+        ["BrightLite Industries", "LED Bulbs", "940540", "India", "Delhi", 100, 15, 4.5, "Yes", "IndiaMART", "sales@brightlite.in"],
+        ["Shakti Exports", "Basmati Rice", "100630", "India", "Karnal", 500, 12, 4.2, "Yes", "DGFT / Govt", "export@shaktigroup.in"],
+        ["GlobalTech Pharma", "Pharmaceuticals", "300490", "India", "Mumbai", 200, 20, 4.8, "No", "Unknown", "bd@globaltechpharma.com"],
+        ["AquaSteel Ltd", "Stainless Steel", "721934", "India", "Ahmedabad", 50, 18, 4.1, "Yes", "TradeIndia", "info@aquasteel.co"],
+        ["Suryan Solar", "Solar Panels", "854140", "India", "Hyderabad", 25, 30, 4.6, "Yes", "IndiaMART", "hello@suryansolar.in"],
+        ["Veda Botanicals", "Herbal Extracts", "130219", "India", "Bengaluru", 80, 10, 4.3, "No", "Unknown", "contact@vedabotanicals.in"],
+    ]
+    df = pd.DataFrame(data, columns=TEMPLATE_COLUMNS)
+    df['HS_Code'] = df['HS_Code'].astype(str)
+    return df
+
 if "df" not in st.session_state:
     st.session_state.df = load_sample_dataframe()
 
 # ---------------------------
-# Sidebar Upload
+# Sidebar – Upload + Filters
 # ---------------------------
-st.sidebar.title("AI Sourcing Agent")
-uploaded = st.sidebar.file_uploader(
-    "Upload supplier CSV/Excel", type=["csv", "xlsx"], help="Supports CSV or Excel"
-)
+st.sidebar.title("📦 AI Sourcing Agent")
+uploaded = st.sidebar.file_uploader("Upload supplier CSV/Excel", type=["csv", "xlsx"])
 
-if uploaded:
+if uploaded is not None:
     try:
         if uploaded.name.endswith(".csv"):
             df_upload = pd.read_csv(uploaded, dtype={"HS_Code": str})
         else:
             df_upload = pd.read_excel(uploaded, dtype={"HS_Code": str})
-
-        # Normalize columns
-        rename_map = {c.lower().strip(): c for c in TEMPLATE_COLUMNS}
-        df_upload.columns = [col.strip() for col in df_upload.columns]
-
-        # Add missing columns
-        for col in TEMPLATE_COLUMNS:
-            if col not in df_upload.columns:
-                if col == "Verified Source":
-                    df_upload[col] = df_upload.get("Contact Email", "").apply(guess_verified_source)
-                else:
-                    df_upload[col] = ""
-
-        st.session_state.df = df_upload[TEMPLATE_COLUMNS]
-        st.sidebar.success("Data uploaded ✔")
+        st.session_state.df = normalize_columns(df_upload)
+        st.sidebar.success("✅ Data uploaded & normalized")
     except Exception as e:
-        st.sidebar.error(f"Error reading file: {e}")
+        st.sidebar.error(f"Upload failed: {e}")
 
 df = st.session_state.df.copy()
 
-# ---------------------------
-# Filters
-# ---------------------------
 q_supplier = st.sidebar.text_input("🔎 Search Supplier / Product")
 sel_product = st.sidebar.multiselect("Product Category", sorted(df["Product Category"].dropna().unique()))
 sel_location = st.sidebar.multiselect("Location", sorted(df["Location"].dropna().unique()))
 sel_country = st.sidebar.multiselect("Country", sorted(df["Country"].dropna().unique()))
 sel_source = st.sidebar.multiselect("Verified Source", sorted(df["Verified Source"].dropna().unique()))
-
 min_rating, max_rating = st.sidebar.slider("Rating range", 0.0, 5.0, (0.0, 5.0), 0.1)
-verified_only = st.sidebar.checkbox("Verified suppliers only", value=False)
-
-hs_query = st.sidebar.text_input("HS Code contains", placeholder="e.g., 940540")
+verified_only = st.sidebar.checkbox("Verified only", value=False)
+hs_query = st.sidebar.text_input("HS Code contains")
 
 mask = pd.Series(True, index=df.index)
 if q_supplier:
-    q = q_supplier.lower()
-    mask &= df["Supplier Name"].str.lower().str.contains(q) | df["Product Category"].str.lower().str.contains(q)
-if sel_product: mask &= df["Product Category"].isin(sel_product)
-if sel_location: mask &= df["Location"].isin(sel_location)
-if sel_country: mask &= df["Country"].isin(sel_country)
-if sel_source: mask &= df["Verified Source"].isin(sel_source)
-if verified_only: mask &= df["Verified"].astype(str).str.lower().eq("yes")
-if hs_query: mask &= df["HS_Code"].astype(str).str.contains(hs_query)
+    q = q_supplier.lower().strip()
+    mask &= (
+        df["Supplier Name"].fillna('').str.lower().str.contains(q)
+        | df["Product Category"].fillna('').str.lower().str.contains(q)
+        | df["Location"].fillna('').str.lower().str.contains(q)
+    )
+if sel_product:
+    mask &= df["Product Category"].isin(sel_product)
+if sel_location:
+    mask &= df["Location"].isin(sel_location)
+if sel_country:
+    mask &= df["Country"].isin(sel_country)
+if sel_source:
+    mask &= df["Verified Source"].isin(sel_source)
+if verified_only:
+    mask &= df["Verified"].astype(str).str.lower().eq("yes")
+if hs_query:
+    mask &= df["HS_Code"].astype(str).str.contains(hs_query, na=False)
 
 mask &= df["Rating"].fillna(0).between(min_rating, max_rating)
 filtered_df = df[mask].reset_index(drop=True)
 
 # ---------------------------
-# Header & KPIs
+# Header / Metrics
 # ---------------------------
-st.markdown(
-    f"""
-    <div class="card">
-      <div style="display:flex; align-items:center; gap:14px;">
-        <div style="font-size: 1.8rem;">📊 <b>Supplier Intelligence Dashboard</b></div>
-        <div style="margin-left:auto; color: #64748b;">Updated: {datetime.now().strftime("%d %b %Y, %I:%M %p")}</div>
-      </div>
-    </div>
-    """, unsafe_allow_html=True
-)
+left, right = st.columns([4,1])
+with left:
+    st.markdown(f"## 📊 Supplier Intelligence Dashboard\n_Last updated: {datetime.now().strftime('%d %b %Y, %I:%M %p')}_")
+with right:
+    st.metric("Rows Loaded", len(df))
+    st.metric("Rows After Filters", len(filtered_df))
 
 col1, col2, col3, col4 = st.columns(4)
-col1.metric("Suppliers", len(filtered_df))
-col2.metric("Verified %", f"{(filtered_df['Verified'].astype(str).str.lower().eq('yes').mean()*100):.1f}%")
-col3.metric("Avg Rating", f"{filtered_df['Rating'].mean():.2f}")
-col4.metric("Avg Lead Time", f"{filtered_df['Lead Time (days)'].mean():.0f} days")
+with col1: st.metric("Total Suppliers", int(filtered_df.shape[0]))
+with col2:
+    pct_verified = filtered_df["Verified"].astype(str).str.lower().eq("yes").mean() * 100 if len(filtered_df)>0 else 0
+    st.metric("Verified %", f"{pct_verified:.1f}%")
+with col3:
+    avg_rating = filtered_df["Rating"].mean() if len(filtered_df) else 0
+    st.metric("Avg Rating", f"{avg_rating:.2f}")
+with col4:
+    avg_lead = filtered_df["Lead Time (days)"].mean() if len(filtered_df) else 0
+    st.metric("Avg Lead Time", f"{avg_lead:.0f} days")
 
 # ---------------------------
 # Tabs
 # ---------------------------
-TAB_DASH, TAB_TABLE, TAB_QA = st.tabs(["📈 Dashboard", "📋 Suppliers", "🤖 Ask AI about Suppliers"])
+TAB_DASH, TAB_TABLE, TAB_EDIT, TAB_QA, TAB_IO, TAB_ABOUT = st.tabs([
+    "📈 Dashboard", "📋 Suppliers", "✏️ Editor", "🤖 Ask AI", "⬆️⬇️ Import & Export", "ℹ️ About",
+])
 
 with TAB_DASH:
     if not filtered_df.empty:
-        fig = px.bar(filtered_df.groupby("Location")["Supplier Name"].count().reset_index(),
-                     x="Location", y="Supplier Name", title="Suppliers by Location")
-        st.plotly_chart(fig, use_container_width=True)
+        c1,c2 = st.columns(2)
+        with c1:
+            fig1 = px.bar(
+                filtered_df.groupby(["Location","Product Category"], as_index=False)["Supplier Name"].count(),
+                x="Location", y="Supplier Name", color="Product Category", title="Suppliers by Location & Category"
+            )
+            st.plotly_chart(fig1, use_container_width=True)
+        with c2:
+            fig2 = px.pie(filtered_df, names="Product Category", title="Category Share")
+            st.plotly_chart(fig2, use_container_width=True)
+
+        c3,c4 = st.columns(2)
+        with c3:
+            fig3 = px.histogram(filtered_df, x="Rating", nbins=10, title="Rating Distribution")
+            st.plotly_chart(fig3, use_container_width=True)
+        with c4:
+            fig4 = px.bar(
+                filtered_df.groupby("HS_Code")["Supplier Name"].count().reset_index(),
+                x="HS_Code", y="Supplier Name", title="Top HS Codes"
+            )
+            st.plotly_chart(fig4, use_container_width=True)
     else:
-        st.info("No data to show.")
+        st.info("No data for charts.")
 
 with TAB_TABLE:
     st.dataframe(filtered_df, use_container_width=True, hide_index=True)
-    st.download_button("⬇️ Download CSV", filtered_df.to_csv(index=False), "suppliers_filtered.csv", "text/csv")
+    st.download_button("Download Filtered CSV", data=filtered_df.to_csv(index=False).encode('utf-8'),
+                       file_name="suppliers_filtered.csv", mime="text/csv")
+
+with TAB_EDIT:
+    st.subheader("Edit / Add Suppliers")
+    if st.button("➕ Add Blank Row"):
+        new_row = pd.DataFrame([{c: "" for c in TEMPLATE_COLUMNS}])
+        st.session_state.df = pd.concat([st.session_state.df, new_row], ignore_index=True)
+        st.rerun()
+
+    edited_df = st.data_editor(st.session_state.df, use_container_width=True, num_rows="dynamic", hide_index=True)
+    if st.button("💾 Save Changes"):
+        st.session_state.df = normalize_columns(edited_df)
+        st.success("Saved!")
 
 with TAB_QA:
     st.subheader("🤖 Ask AI about your suppliers")
-    query = st.text_input("Ask a question (e.g., 'Show me coffee suppliers in Delhi')")
-    if query:
-        # convert DataFrame to text
-        context = "\n".join(filtered_df.astype(str).apply(lambda x: " | ".join(x), axis=1).tolist())
-        qa = pipeline("question-answering", model="distilbert-base-uncased-distilled-squad")
-        try:
-            ans = qa(question=query, context=context)
-            st.success(ans["answer"])
-        except Exception as e:
-            st.error(f"LLM Error: {e}")
+    question = st.text_input("Ask a question (e.g., 'Which supplier has the fastest lead time?')")
+    if question and not df.empty:
+        # Give AI more structured context
+        context = "\n".join(
+            f"{row['Supplier Name']} ({row['Product Category']}) in {row['Location']}, {row['Country']} - "
+            f"HS {row['HS_Code']}, MOQ {row['Minimum Order Quantity']}, Lead {row['Lead Time (days)']} days, "
+            f"Rating {row['Rating']}, Verified {row['Verified']}, Source {row['Verified Source']}"
+            for _, row in filtered_df.head(50).iterrows()
+        )
+        result = qa_pipeline(question=question, context=context)
+        st.write("**Answer:**", result['answer'])
+
+        # Also show top-matching suppliers
+        st.markdown("**Relevant Suppliers:**")
+        hits = [row for _, row in filtered_df.iterrows() if str(result['answer']).lower() in str(row).lower()]
+        if hits:
+            st.dataframe(pd.DataFrame(hits).head(10), use_container_width=True, hide_index=True)
+    elif question:
+        st.warning("No data available to answer.")
+
+with TAB_IO:
+    st.download_button("⬇️ Download All (CSV)",
+        data=st.session_state.df.to_csv(index=False).encode('utf-8'),
+        file_name="suppliers_all.csv", mime="text/csv")
+
+    st.download_button("⬇️ Download All (JSON)",
+        data=st.session_state.df.to_json(orient="records", indent=2),
+        file_name="suppliers_all.json", mime="application/json")
+
+    st.download_button("⬇️ Blank Template (CSV)",
+        data=pd.DataFrame(columns=TEMPLATE_COLUMNS).to_csv(index=False).encode('utf-8'),
+        file_name="suppliers_template.csv", mime="text/csv")
+
+with TAB_ABOUT:
+    st.markdown("""
+    ### About
+    - Free Streamlit dashboard for supplier intelligence  
+    - Features: filters, charts, editable table, import/export  
+    - Added 🤖 Q&A with Hugging Face (DistilBERT QA)  
+    - Includes Verified Source detection & filtering  
+    """)
