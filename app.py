@@ -1,13 +1,9 @@
 from __future__ import annotations
-import io
 import re
 from datetime import datetime
-
 import pandas as pd
 import plotly.express as px
 import streamlit as st
-
-# Hugging Face transformers for free Q&A
 from transformers import pipeline
 
 # ---------------------------
@@ -21,7 +17,7 @@ st.set_page_config(
 )
 
 # ---------------------------
-# Load QA model (once)
+# Load QA model (Hugging Face)
 # ---------------------------
 @st.cache_resource
 def load_qa_model():
@@ -42,7 +38,7 @@ TEMPLATE_COLUMNS = [
     "Lead Time (days)",
     "Rating",
     "Verified",
-    "Verified Source",
+    "Verified Source",   # 👈 added new
     "Contact Email",
 ]
 
@@ -61,23 +57,10 @@ COLUMN_ALIASES = {
     "delivery days": "Lead Time (days)",
     "rating": "Rating",
     "verified": "Verified",
-    "source": "Verified Source",
+    "verified source": "Verified Source",
     "email": "Contact Email",
     "contact": "Contact Email",
 }
-
-def guess_verified_source(email: str) -> str:
-    if not isinstance(email, str):
-        return "Unknown"
-    e = email.lower()
-    if e.endswith(".gov.in"):
-        return "DGFT / Govt"
-    elif "indiamart" in e:
-        return "IndiaMART"
-    elif "tradeindia" in e:
-        return "TradeIndia"
-    else:
-        return "Unknown"
 
 def normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
     renamed = {}
@@ -95,30 +78,57 @@ def normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
         if col not in df.columns:
             df[col] = None
     df = df[TEMPLATE_COLUMNS]
-
     if "Lead Time (days)" in df.columns:
         df["Lead Time (days)"] = pd.to_numeric(df["Lead Time (days)"], errors="coerce")
     if "Rating" in df.columns:
         df["Rating"] = pd.to_numeric(df["Rating"], errors="coerce")
-
-    if "Verified Source" in df.columns:
-        df["Verified Source"] = df["Verified Source"].fillna("Unknown")
-    else:
-        df["Verified Source"] = df["Contact Email"].apply(guess_verified_source)
-
     return df
 
 # ---------------------------
-# Sample Data
+# Verified Source Detector
+# ---------------------------
+def detect_verified_source(email: str) -> str:
+    if pd.isna(email):
+        return "Unknown"
+    email = str(email).lower()
+
+    # Known platforms
+    if email.endswith(".gov.in"):
+        return "DGFT / Govt"
+    if "indiamart" in email:
+        return "IndiaMART"
+    if "tradeindia" in email:
+        return "TradeIndia"
+    if "exportersindia" in email:
+        return "ExportersIndia"
+    if email.endswith(".org") or email.endswith(".ngo"):
+        return "NGO / Association"
+
+    # Domain mapping
+    if email.endswith(".in"):
+        return "Indian Private Company"
+    if email.endswith(".com"):
+        return "Global Trader / Exporter"
+    if email.endswith(".net"):
+        return "Technology/Service Provider"
+    if email.endswith(".co"):
+        return "Company / Startup"
+    if email.endswith(".edu") or email.endswith(".ac.in"):
+        return "Educational Institution"
+
+    return "Unknown"
+
+# ---------------------------
+# Sample Data (default)
 # ---------------------------
 def load_sample_dataframe() -> pd.DataFrame:
     data = [
-        ["BrightLite Industries", "LED Bulbs", "940540", "India", "Delhi", 100, 15, 4.5, "Yes", "IndiaMART", "sales@brightlite.in"],
-        ["Shakti Exports", "Basmati Rice", "100630", "India", "Karnal", 500, 12, 4.2, "Yes", "DGFT / Govt", "export@shaktigroup.in"],
-        ["GlobalTech Pharma", "Pharmaceuticals", "300490", "India", "Mumbai", 200, 20, 4.8, "No", "Unknown", "bd@globaltechpharma.com"],
-        ["AquaSteel Ltd", "Stainless Steel", "721934", "India", "Ahmedabad", 50, 18, 4.1, "Yes", "TradeIndia", "info@aquasteel.co"],
-        ["Suryan Solar", "Solar Panels", "854140", "India", "Hyderabad", 25, 30, 4.6, "Yes", "IndiaMART", "hello@suryansolar.in"],
-        ["Veda Botanicals", "Herbal Extracts", "130219", "India", "Bengaluru", 80, 10, 4.3, "No", "Unknown", "contact@vedabotanicals.in"],
+        ["BrightLite Industries", "LED Bulbs", "940540", "India", "Delhi", 100, 15, 4.5, "Yes", "Indian Private Company", "sales@brightlite.in"],
+        ["Shakti Exports", "Basmati Rice", "100630", "India", "Karnal", 500, 12, 4.2, "Yes", "Indian Private Company", "export@shaktigroup.in"],
+        ["GlobalTech Pharma", "Pharmaceuticals", "300490", "India", "Mumbai", 200, 20, 4.8, "No", "Global Trader / Exporter", "bd@globaltechpharma.com"],
+        ["AquaSteel Ltd", "Stainless Steel", "721934", "India", "Ahmedabad", 50, 18, 4.1, "Yes", "Company / Startup", "info@aquasteel.co"],
+        ["Suryan Solar", "Solar Panels", "854140", "India", "Hyderabad", 25, 30, 4.6, "Yes", "Indian Private Company", "hello@suryansolar.in"],
+        ["Veda Botanicals", "Herbal Extracts", "130219", "India", "Bengaluru", 80, 10, 4.3, "No", "Indian Private Company", "contact@vedabotanicals.in"],
     ]
     df = pd.DataFrame(data, columns=TEMPLATE_COLUMNS)
     df['HS_Code'] = df['HS_Code'].astype(str)
@@ -140,17 +150,26 @@ if uploaded is not None:
         else:
             df_upload = pd.read_excel(uploaded, dtype={"HS_Code": str})
         st.session_state.df = normalize_columns(df_upload)
+
+        # Auto-detect Verified Source
+        if "Contact Email" in st.session_state.df.columns:
+            st.session_state.df["Verified Source"] = st.session_state.df["Contact Email"].apply(detect_verified_source)
+        else:
+            st.session_state.df["Verified Source"] = "Unknown"
+
         st.sidebar.success("✅ Data uploaded & normalized")
     except Exception as e:
         st.sidebar.error(f"Upload failed: {e}")
 
 df = st.session_state.df.copy()
 
+# ---------------------------
+# Filters
+# ---------------------------
 q_supplier = st.sidebar.text_input("🔎 Search Supplier / Product")
 sel_product = st.sidebar.multiselect("Product Category", sorted(df["Product Category"].dropna().unique()))
 sel_location = st.sidebar.multiselect("Location", sorted(df["Location"].dropna().unique()))
 sel_country = st.sidebar.multiselect("Country", sorted(df["Country"].dropna().unique()))
-sel_source = st.sidebar.multiselect("Verified Source", sorted(df["Verified Source"].dropna().unique()))
 min_rating, max_rating = st.sidebar.slider("Rating range", 0.0, 5.0, (0.0, 5.0), 0.1)
 verified_only = st.sidebar.checkbox("Verified only", value=False)
 hs_query = st.sidebar.text_input("HS Code contains")
@@ -169,8 +188,6 @@ if sel_location:
     mask &= df["Location"].isin(sel_location)
 if sel_country:
     mask &= df["Country"].isin(sel_country)
-if sel_source:
-    mask &= df["Verified Source"].isin(sel_source)
 if verified_only:
     mask &= df["Verified"].astype(str).str.lower().eq("yes")
 if hs_query:
@@ -220,17 +237,6 @@ with TAB_DASH:
         with c2:
             fig2 = px.pie(filtered_df, names="Product Category", title="Category Share")
             st.plotly_chart(fig2, use_container_width=True)
-
-        c3,c4 = st.columns(2)
-        with c3:
-            fig3 = px.histogram(filtered_df, x="Rating", nbins=10, title="Rating Distribution")
-            st.plotly_chart(fig3, use_container_width=True)
-        with c4:
-            fig4 = px.bar(
-                filtered_df.groupby("HS_Code")["Supplier Name"].count().reset_index(),
-                x="HS_Code", y="Supplier Name", title="Top HS Codes"
-            )
-            st.plotly_chart(fig4, use_container_width=True)
     else:
         st.info("No data for charts.")
 
@@ -249,27 +255,20 @@ with TAB_EDIT:
     edited_df = st.data_editor(st.session_state.df, use_container_width=True, num_rows="dynamic", hide_index=True)
     if st.button("💾 Save Changes"):
         st.session_state.df = normalize_columns(edited_df)
+        if "Contact Email" in st.session_state.df.columns:
+            st.session_state.df["Verified Source"] = st.session_state.df["Contact Email"].apply(detect_verified_source)
         st.success("Saved!")
 
 with TAB_QA:
     st.subheader("🤖 Ask AI about your suppliers")
     question = st.text_input("Ask a question (e.g., 'Which supplier has the fastest lead time?')")
     if question and not df.empty:
-        # Give AI more structured context
         context = "\n".join(
-            f"{row['Supplier Name']} ({row['Product Category']}) in {row['Location']}, {row['Country']} - "
-            f"HS {row['HS_Code']}, MOQ {row['Minimum Order Quantity']}, Lead {row['Lead Time (days)']} days, "
-            f"Rating {row['Rating']}, Verified {row['Verified']}, Source {row['Verified Source']}"
-            for _, row in filtered_df.head(50).iterrows()
+            f"{row['Supplier Name']} in {row['Location']} ({row['Product Category']}) - Lead time {row['Lead Time (days)']} days, Rating {row['Rating']}, Source {row['Verified Source']}"
+            for _, row in filtered_df.head(30).iterrows()
         )
         result = qa_pipeline(question=question, context=context)
         st.write("**Answer:**", result['answer'])
-
-        # Also show top-matching suppliers
-        st.markdown("**Relevant Suppliers:**")
-        hits = [row for _, row in filtered_df.iterrows() if str(result['answer']).lower() in str(row).lower()]
-        if hits:
-            st.dataframe(pd.DataFrame(hits).head(10), use_container_width=True, hide_index=True)
     elif question:
         st.warning("No data available to answer.")
 
@@ -278,19 +277,11 @@ with TAB_IO:
         data=st.session_state.df.to_csv(index=False).encode('utf-8'),
         file_name="suppliers_all.csv", mime="text/csv")
 
-    st.download_button("⬇️ Download All (JSON)",
-        data=st.session_state.df.to_json(orient="records", indent=2),
-        file_name="suppliers_all.json", mime="application/json")
-
-    st.download_button("⬇️ Blank Template (CSV)",
-        data=pd.DataFrame(columns=TEMPLATE_COLUMNS).to_csv(index=False).encode('utf-8'),
-        file_name="suppliers_template.csv", mime="text/csv")
-
 with TAB_ABOUT:
     st.markdown("""
     ### About
     - Free Streamlit dashboard for supplier intelligence  
     - Features: filters, charts, editable table, import/export  
+    - Auto-detects **Verified Source** from email domain  
     - Added 🤖 Q&A with Hugging Face (DistilBERT QA)  
-    - Includes Verified Source detection & filtering  
     """)
