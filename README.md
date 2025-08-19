@@ -1,28 +1,60 @@
-# 📦 AI Sourcing Agent – Supplier Intelligence Dashboard
+# 📦 AI Sourcing Agent – Streamlit Dashboard
 
-An open-source **Streamlit dashboard** to manage, analyze, and explore supplier datasets with **AI-powered Q&A**.  
-Built for sourcing agents, procurement teams, and exporters.
+A powerful **supplier intelligence dashboard** built with **Streamlit**, now with:
+
+- ✅ CSV/Excel upload & column auto-normalization
+- ✅ Auto-detect **Verified Source** (IndiaMART, DGFT, TradeIndia, etc.)
+- ✅ Search + Filters (supplier/product/location/country/HS/rating/verified)
+- ✅ Charts (bar, pie, metrics dashboard)
+- ✅ Editable suppliers table with save
+- ✅ Export (CSV, Excel, JSON)
+- ✅ 🤖 AI Q&A (powered by Hugging Face DistilBERT)
+- ✅ 📡 Live Data loader (UN Comtrade integration)
 
 ---
 
 ## 🚀 Features
 
-✅ Upload your **CSV/Excel** supplier datasets  
-✅ Auto-normalizes columns (Supplier Name, HS Code, Country, MOQ, Lead Time, Rating, etc.)  
-✅ **Verified Source detection** (e.g., `.gov.in = DGFT / Govt`, `.in = Indian Private Company`, `.com = Global Trader`)  
-✅ Rich **filters**: search by product, supplier, location, rating, HS code, etc.  
-✅ 📊 Interactive **charts** (bar, pie) with Plotly  
-✅ 📋 **Supplier table** with download/export options  
-✅ ✏️ **Editable data grid** with ability to add rows  
-✅ 🤖 **Ask AI** – natural language Q&A powered by Hugging Face (DistilBERT)  
-✅ ⬆️⬇️ Import & export datasets (CSV download, Excel upload)  
-✅ 🧮 Metrics panel: verified %, average rating, average lead time  
+### File Upload
+- Upload supplier data in **CSV** or **Excel**.
+- Automatically cleans & normalizes column names.
+- Fills in **Verified Source** based on supplier email domain.
+
+### Verified Source Detection
+- `.gov.in` → **DGFT / Govt**  
+- `indiamart.com` → **IndiaMART**  
+- `tradeindia.com` → **TradeIndia**  
+- `exportersindia.com` → **ExportersIndia**  
+- `.in` → **Indian Private Company**  
+- `.com` → **Global Trader / Exporter**  
+- `.org` → **NGO / Association**  
+
+### Dashboard
+- Supplier overview with metrics:
+  - Total Suppliers
+  - Verified %
+  - Average Rating
+  - Average Lead Time
+- Interactive charts (location vs category, category share).
+
+### 🤖 Ask AI
+- Ask natural-language questions like:
+  - *Which supplier has the fastest lead time?*
+  - *List verified coffee exporters.*
+- Uses Hugging Face **DistilBERT QA** pipeline.
+
+### 📡 Live Data Integration
+- Fetch **real trade data** from **UN Comtrade API**.
+- Example: Indian exports of **coffee (HS 0901)**.
+- App merges live data with uploaded suppliers.
+
+### Import/Export
+- Export **filtered data** to CSV.
+- Export **all suppliers** to CSV/Excel/JSON.
 
 ---
 
 ## 🛠️ Installation
-
-Clone the repo and install requirements:
 
 ```bash
 pip install -r requirements.txt
